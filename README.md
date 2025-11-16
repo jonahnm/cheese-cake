@@ -20,3 +20,9 @@ This includes:
 
 # DEMONSTRATION
 [2025-11-16 15-38-43.webm](https://github.com/user-attachments/assets/a8bcaa8f-1818-48ad-a5f4-e49aef32de77)
+
+
+## 📚 References
+https://github.com/zhuowei/cheese
+https://xploitbengineer.github.io/CVE-2025-21479
+https://dawnslab.jd.com/android_gpu_attack_cve_2025_21479/#more
