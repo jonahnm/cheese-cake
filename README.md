@@ -23,6 +23,6 @@ This includes:
 
 
 ## 📚 References
-https://github.com/zhuowei/cheese
-https://xploitbengineer.github.io/CVE-2025-21479
-https://dawnslab.jd.com/android_gpu_attack_cve_2025_21479/#more
+- https://github.com/zhuowei/cheese  
+- https://xploitbengineer.github.io/CVE-2025-21479  
+- https://dawnslab.jd.com/android_gpu_attack_cve_2025_21479/#more 
