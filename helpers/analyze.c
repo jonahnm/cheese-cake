@@ -6,10 +6,8 @@
 #include <stdint.h>
 
 #define TARGET_SYMBOL "__do_sys_capset"
-#define VIRT_ADDR 0xffffffe4ee740ca4    //cat kallsyms.txt | grep -A2 "__do_sys_capset"
-#define VIRT_NEXT 0xffffffe4ee741130
 #define PHYS_ADDR 0x140ca4   // __do_sys_capset - _text
-#define MAX_SIZE (VIRT_NEXT - VIRT_ADDR)
+#define MAX_SIZE 0x48c
 #define TMP_BIN "func.bin"
 
 // Find actual function end by looking for ret instruction
