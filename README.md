@@ -1,7 +1,6 @@
 FIX ISSUES :- 
-1. adapt shellcode to disable seccomp
-2. adapt to samsung device maybe seprate branch add func of finding kernel base using gpu
-3. change README
+1. adapt to samsung device maybe seprate branch add func of finding kernel base using gpu
+2. change README
 
 🤝 Contributing
 Pull Requests (PRs) are welcome and greatly appreciated!
