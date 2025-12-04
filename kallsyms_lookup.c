@@ -127,79 +127,73 @@ static size_t decompress_string(uint8_t* p, const char* kallsyms_token_table,
 int cheese_create_kallsyms_lookup(
     struct cheese_kallsyms_lookup* kallsyms_lookup, void* kernel_data,
     size_t kernel_length) {
-  
+
   memset(kallsyms_lookup, 0, sizeof(*kallsyms_lookup));
   kallsyms_lookup->kernel_data = kernel_data;
   kallsyms_lookup->kernel_length = kernel_length;
-  
+
   uint8_t* data = kernel_data;
   size_t size = kernel_length;
-  
-  // Find token table
-  uint8_t pattern[26 * 2];
-  for (int i = 0; i < 26; i++) {
-    pattern[i * 2] = 'A' + i;
-    pattern[i * 2 + 1] = 0;
+
+  // 1. Find token index and token table
+  uint8_t* token_index_ptr = NULL;
+  uint8_t* token_table_ptr = NULL;
+  uint8_t* p;
+
+  for (long i = 0; i < size - 512; i += 2) {
+      // Check LE
+      if (read_u16(data + i, 1) == 0) {
+          bool possible = true;
+          for (int j = 0; j < 255; j++) {
+             uint16_t v1 = read_u16(data + i + j*2, 1);
+             uint16_t v2 = read_u16(data + i + (j+1)*2, 1);
+             if (v2 <= v1 || (v2 - v1) < 2 || (v2 - v1) > 128) { possible = false; break; }
+          }
+          if (possible) {
+              // Try to find token table
+              uint16_t last_idx = read_u16(data + i + 255*2, 1);
+              // Search backwards for table start.
+              // Optimization: T is likely aligned or close.
+              // Let's scan backwards from index_ptr - last_idx - 512 to index_ptr.
+              uint8_t* search_limit = data + i - last_idx - 4096;
+              if (search_limit < data) search_limit = data;
+
+              uint16_t idx1 = read_u16(data + i + 2, 1);
+              uint16_t idx2 = read_u16(data + i + 4, 1);
+              uint16_t idx3 = read_u16(data + i + 6, 1);
+
+              for (uint8_t* t = data + i - last_idx; t > search_limit; t--) {
+                  if (t[idx1 - 1] == 0 && t[idx2 - 1] == 0 && t[idx3 - 1] == 0) {
+                      // Verify more?
+                      bool match = true;
+                      for(int k=1; k<10; k++) {
+                          uint16_t idx = read_u16(data + i + k*2, 1);
+                          if (t[idx-1] != 0) { match = false; break; }
+                      }
+                      if (match) {
+                          token_index_ptr = data + i;
+                          token_table_ptr = t;
+                          kallsyms_lookup->endian = 1;
+                          goto token_found;
+                      }
+                  }
+              }
+          }
+      }
   }
-  
-  uint8_t* found = memmem_custom(data, size, pattern, sizeof(pattern));
-  if (!found) {
-    fprintf(stderr, "can't find kallsyms_token_table: no letters\n");
-    return 1;
+
+  if (!token_index_ptr) {
+      return 1;
   }
-  
-  uint8_t* curr = found;
-  for (int i = 0; i < 0x41; i++) {
-    uint8_t* p = curr - 2;
-    while (p > data && *p != 0) p--;
-    curr = p + 1;
-  }
-  
-  uint8_t* token_table = (uint8_t*)align_up(curr, 4);
-  kallsyms_lookup->kallsyms_token_table = (char*)token_table;
-  
-  // Build token index
-  uint16_t expected[256];
-  uint32_t current_offset = 0;
-  uint8_t* p = token_table;
-  for (int i = 0; i < 256; i++) {
-    expected[i] = (uint16_t)current_offset;
-    size_t len = strlen((char*)p);
-    current_offset += len + 1;
-    p += len + 1;
-  }
-  
-  uint8_t pat_le[512], pat_be[512];
-  for (int i = 0; i < 256; i++) {
-    pat_le[i*2] = expected[i] & 0xFF;
-    pat_le[i*2+1] = (expected[i] >> 8) & 0xFF;
-    pat_be[i*2] = (expected[i] >> 8) & 0xFF;
-    pat_be[i*2+1] = expected[i] & 0xFF;
-  }
-  
-  uint8_t* search_start = (uint8_t*)align_up(p, 8);
-  uint8_t* token_index = NULL;
-  
-  found = memmem_custom(search_start, 65536, pat_le, 512);
-  if (found && (found <= data + size - 512)) {
-    kallsyms_lookup->endian = 1;
-    token_index = found;
-  } else {
-    found = memmem_custom(search_start, 65536, pat_be, 512);
-    if (found && (found <= data + size - 512)) {
-      kallsyms_lookup->endian = 2;
-      token_index = found;
-    }
-  }
-  
-  if (!token_index) {
-    kallsyms_lookup->built_token_index = malloc(256 * sizeof(uint16_t));
-    for(int i=0; i<256; i++) kallsyms_lookup->built_token_index[i] = expected[i];
-    kallsyms_lookup->token_index_is_built = true;
-    kallsyms_lookup->kallsyms_token_index = kallsyms_lookup->built_token_index;
-  } else {
-    kallsyms_lookup->kallsyms_token_index = (uint16_t*)token_index;
-  }
+
+token_found:
+  kallsyms_lookup->kallsyms_token_table = (char*)token_table_ptr;
+  kallsyms_lookup->kallsyms_token_index = (uint16_t*)token_index_ptr;
+  kallsyms_lookup->token_index_is_built = false;
+
+  uint8_t* token_table = token_table_ptr;
+  uint8_t* token_index = token_index_ptr;
+  p = (uint8_t*)token_table;
   
   // Find markers
   uint8_t* markers = NULL;
